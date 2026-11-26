@@ -10,7 +10,7 @@ import { createRoot } from 'react-dom/client';
 import { initializeApp } from 'firebase/app';
 import {
   getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword,
-  sendEmailVerification, sendPasswordResetEmail, signOut,
+  sendEmailVerification, sendPasswordResetEmail, signOut, GoogleAuthProvider, signInWithPopup,
 } from 'firebase/auth';
 import { getFirestore, doc, getDoc, setDoc, serverTimestamp, collection, getDocs } from 'firebase/firestore';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
@@ -34,6 +34,9 @@ const DICT = {
     email: 'البريد الإلكتروني', password: 'كلمة المرور', enter: 'دخول', createAcc: 'إنشاء الحساب',
     sendLink: 'إرسال الرابط', haveAcc: 'لدي حساب', newAcc: 'حساب جديد', forgot: 'نسيت كلمة المرور؟',
     resetSent: 'تم إرسال رابط إعادة تعيين كلمة المرور.',
+    googleBtn: 'تسجيل الدخول باستخدام Google', orSep: 'أو', e_popup: 'المتصفح منع نافذة Google المنبثقة. اسمح بالنوافذ المنبثقة لهذا الموقع وأعد المحاولة.',
+    e_domain: 'نطاق هذا الموقع غير مصرّح به في Firebase (Authorized domains).', e_provider: 'طريقة تسجيل الدخول هذه غير مفعّلة في Firebase (Sign-in method).',
+    e_apikey: 'مفتاح Firebase غير صالح أو إعدادات VITE_FIREBASE_* خاطئة.', errCode: 'رمز الخطأ',
     verifyTitle: '📧 أكّد بريدك الإلكتروني', verifyText: 'أرسلنا رابط تأكيد إلى {email}. افتح الرابط ثم اضغط الزر أدناه.',
     verifiedBtn: 'لقد أكدت بريدي', resend: 'إعادة الإرسال', resent: 'تم إرسال الرابط من جديد.', logout: 'خروج',
     tabEditor: 'المونتاج', tabAdmin: 'غرفة المدير',
@@ -68,6 +71,9 @@ const DICT = {
     email: 'Email', password: 'Password', enter: 'Sign in', createAcc: 'Create account',
     sendLink: 'Send link', haveAcc: 'I have an account', newAcc: 'New account', forgot: 'Forgot password?',
     resetSent: 'Password reset link sent.',
+    googleBtn: 'Sign in with Google', orSep: 'or', e_popup: 'The browser blocked the Google popup. Allow popups for this site and try again.',
+    e_domain: 'This site domain is not authorized in Firebase (Authorized domains).', e_provider: 'This sign-in method is not enabled in Firebase (Sign-in method).',
+    e_apikey: 'Invalid Firebase API key or wrong VITE_FIREBASE_* settings.', errCode: 'Error code',
     verifyTitle: '📧 Confirm your email', verifyText: 'We sent a confirmation link to {email}. Open it, then press the button below.',
     verifiedBtn: 'I confirmed my email', resend: 'Resend', resent: 'Link sent again.', logout: 'Log out',
     tabEditor: 'Editor', tabAdmin: 'Admin room',
@@ -102,6 +108,9 @@ const DICT = {
     email: 'E-mail', password: 'Mot de passe', enter: 'Se connecter', createAcc: 'Créer le compte',
     sendLink: 'Envoyer le lien', haveAcc: "J'ai un compte", newAcc: 'Nouveau compte', forgot: 'Mot de passe oublié ?',
     resetSent: 'Lien de réinitialisation envoyé.',
+    googleBtn: 'Se connecter avec Google', orSep: 'ou', e_popup: 'Le navigateur a bloqué la fenêtre Google. Autorisez les pop-ups pour ce site et réessayez.',
+    e_domain: "Le domaine de ce site n'est pas autorisé dans Firebase (Authorized domains).", e_provider: "Cette méthode de connexion n'est pas activée dans Firebase (Sign-in method).",
+    e_apikey: 'Clé API Firebase invalide ou variables VITE_FIREBASE_* incorrectes.', errCode: "Code d'erreur",
     verifyTitle: '📧 Confirmez votre e-mail', verifyText: 'Nous avons envoyé un lien de confirmation à {email}. Ouvrez-le puis appuyez sur le bouton ci-dessous.',
     verifiedBtn: "J'ai confirmé mon e-mail", resend: 'Renvoyer', resent: 'Lien renvoyé.', logout: 'Déconnexion',
     tabEditor: 'Montage', tabAdmin: 'Espace admin',
@@ -136,6 +145,9 @@ const DICT = {
     email: 'Correo electrónico', password: 'Contraseña', enter: 'Entrar', createAcc: 'Crear cuenta',
     sendLink: 'Enviar enlace', haveAcc: 'Ya tengo cuenta', newAcc: 'Cuenta nueva', forgot: '¿Olvidaste tu contraseña?',
     resetSent: 'Enlace de restablecimiento enviado.',
+    googleBtn: 'Iniciar sesión con Google', orSep: 'o', e_popup: 'El navegador bloqueó la ventana de Google. Permite las ventanas emergentes para este sitio e inténtalo de nuevo.',
+    e_domain: 'El dominio de este sitio no está autorizado en Firebase (Authorized domains).', e_provider: 'Este método de inicio de sesión no está activado en Firebase (Sign-in method).',
+    e_apikey: 'Clave de API de Firebase no válida o variables VITE_FIREBASE_* incorrectas.', errCode: 'Código de error',
     verifyTitle: '📧 Confirma tu correo', verifyText: 'Enviamos un enlace de confirmación a {email}. Ábrelo y pulsa el botón de abajo.',
     verifiedBtn: 'Ya confirmé mi correo', resend: 'Reenviar', resent: 'Enlace reenviado.', logout: 'Salir',
     tabEditor: 'Editor', tabAdmin: 'Sala de admin',
@@ -392,7 +404,7 @@ function Provider({ children }) {
             minutesUsed: 0, createdAt: serverTimestamp(),
           });
         }
-      } catch (e) { console.warn('profile init skipped', e); }
+      } catch (e) { console.warn('profile init skipped (لا يمنع الدخول)', e); }
     });
     return () => unsubAuth();
   }, []);
@@ -412,7 +424,16 @@ function Provider({ children }) {
 
   const api = {
     lang, setLang, t, user, loading, isAdmin, verified, refreshUser,
-    signup: async (m, p) => { const c = await createUserWithEmailAndPassword(auth, m, p); await sendEmailVerification(c.user); },
+    signup: async (m, p) => {
+      const c = await createUserWithEmailAndPassword(auth, m, p);
+      // فشل إرسال رسالة التأكيد لا يجب أن يُظهر خطأ والحساب أُنشئ فعلاً؛ يمكن إعادة الإرسال من شاشة التأكيد
+      try { await sendEmailVerification(c.user); } catch (e) { console.warn('verification email failed', e); }
+    },
+    loginGoogle: () => {
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+      return signInWithPopup(auth, provider);
+    },
     login: (m, p) => signInWithEmailAndPassword(auth, m, p),
     resetPassword: (m) => sendPasswordResetEmail(auth, m),
     resendVerification: () => sendEmailVerification(auth.currentUser),
@@ -435,11 +456,25 @@ const authErrorKey = (code) => ({
   'auth/invalid-email': 'e_invalid', 'auth/user-not-found': 'e_notfound', 'auth/wrong-password': 'e_cred',
   'auth/invalid-credential': 'e_cred', 'auth/email-already-in-use': 'e_exists', 'auth/weak-password': 'e_weak',
   'auth/too-many-requests': 'e_many', 'auth/network-request-failed': 'e_net',
+  'auth/popup-blocked': 'e_popup', 'auth/unauthorized-domain': 'e_domain',
+  'auth/operation-not-allowed': 'e_provider', 'auth/configuration-not-found': 'e_provider',
+  'auth/invalid-api-key': 'e_apikey', 'auth/api-key-not-valid.-please-pass-a-valid-api-key.': 'e_apikey',
 }[code] || 'e_generic');
+
+// يعرض الرسالة المفهومة + رمز الخطأ الحقيقي من Firebase (ولرسائل غير المعروفة: النص الأصلي كاملاً)
+function describeError(ex, t) {
+  console.error('[auth error]', ex);
+  const code = ex?.code || '';
+  const key = authErrorKey(code);
+  let text = t(key);
+  if (key === 'e_generic') text += ` ${ex?.message || String(ex)}`;
+  if (code) text += ` — ${t('errCode')}: ${code}`;
+  return text;
+}
 
 /* ---------- تسجيل الدخول ---------- */
 function Login() {
-  const { t, login, signup, resetPassword } = useApp();
+  const { t, login, signup, resetPassword, loginGoogle } = useApp();
   const [mode, setMode] = useState('login');
   const [email, setEmail] = useState('');
   const [pass, setPass] = useState('');
@@ -454,7 +489,16 @@ function Login() {
       if (mode === 'login') await login(email.trim(), pass);
       else if (mode === 'signup') await signup(email.trim(), pass);
       else { await resetPassword(email.trim()); setInfo(t('resetSent')); }
-    } catch (ex) { setErr(t(authErrorKey(ex.code))); }
+    } catch (ex) { setErr(describeError(ex, t)); }
+    setBusy(false);
+  };
+
+  const google = async () => {
+    setErr(''); setInfo(''); setBusy(true);
+    try { await loginGoogle(); } catch (ex) {
+      // إغلاق النافذة من المستخدم ليس خطأً حقيقياً
+      if (ex?.code !== 'auth/popup-closed-by-user' && ex?.code !== 'auth/cancelled-popup-request') setErr(describeError(ex, t));
+    }
     setBusy(false);
   };
 
@@ -483,6 +527,20 @@ function Login() {
         <button className="btn primary block" disabled={busy}>
           {busy ? '...' : mode === 'login' ? t('enter') : mode === 'signup' ? t('createAcc') : t('sendLink')}
         </button>
+        {mode !== 'reset' && (
+          <>
+            <div className="or"><span>{t('orSep')}</span></div>
+            <button type="button" className="btn block google" disabled={busy} onClick={google}>
+              <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+                <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/>
+                <path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.2 5.3-4.6 6.9l7.1 5.5c4.2-3.8 6.7-9.5 6.7-16.9z"/>
+                <path fill="#FBBC05" d="M10.5 28.7c-.5-1.4-.8-2.9-.8-4.7s.3-3.3.8-4.7l-7.9-6.1C.9 16.4 0 20.1 0 24s.9 7.6 2.6 10.8l7.9-6.1z"/>
+                <path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.1-5.5c-2 1.4-4.6 2.3-8.8 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/>
+              </svg>
+              {t('googleBtn')}
+            </button>
+          </>
+        )}
         <div className="links">
           {mode !== 'login' && <a onClick={() => setMode('login')}>{t('haveAcc')}</a>}
           {mode !== 'signup' && <a onClick={() => setMode('signup')}>{t('newAcc')}</a>}
@@ -835,7 +893,9 @@ input:focus,select:focus{outline:2px solid var(--p1)}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.row.spread{justify-content:space-between;align-items:flex-end}
 .row input{flex:1;min-width:180px;margin-top:0}
 .links{display:flex;gap:14px;justify-content:center;margin-top:14px;font-size:.9rem;flex-wrap:wrap}
-.err{color:var(--err)}.ok{color:var(--ok)}.hint{color:var(--mut);font-size:.9rem}
+.or{display:flex;align-items:center;gap:10px;color:var(--mut);margin:14px 0 6px;font-size:.85rem}.or::before,.or::after{content:'';flex:1;height:1px;background:var(--line)}
+.btn.google{background:#fff;color:#1f1f1f;border-color:#dadce0}.btn.google:hover{border-color:#4285F4}
+.err{color:var(--err);word-break:break-word}.ok{color:var(--ok)}.hint{color:var(--mut);font-size:.9rem}
 .drop{border:2px dashed var(--line);border-radius:14px;padding:28px;text-align:center;cursor:pointer;color:var(--mut)}.drop:hover{border-color:var(--p1)}
 .thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;margin-top:14px;max-height:360px;overflow:auto}
 .thumb{position:relative;border-radius:10px;overflow:hidden;aspect-ratio:16/10;border:1px solid var(--line)}
