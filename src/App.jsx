@@ -9,7 +9,7 @@ import { createRoot } from 'react-dom/client';
 import { initializeApp } from 'firebase/app';
 import {
   getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword,
-  sendEmailVerification, sendPasswordResetEmail, signOut,
+  sendEmailVerification, sendPasswordResetEmail, signOut, GoogleAuthProvider, signInWithPopup,
 } from 'firebase/auth';
 import {
   getFirestore, doc, getDoc, setDoc, onSnapshot, runTransaction, serverTimestamp,
@@ -56,6 +56,11 @@ const DICT = {
     e_cred: 'البريد أو كلمة المرور غير صحيحة.', e_exists: 'هذا البريد مسجّل مسبقاً.',
     e_weak: 'كلمة المرور ضعيفة (6 أحرف على الأقل).', e_many: 'محاولات كثيرة، حاول لاحقاً.',
     e_net: 'مشكلة في الاتصال بالإنترنت.', e_generic: 'حدث خطأ غير متوقع.',
+    googleBtn: 'تسجيل الدخول بواسطة Google', orSep: 'أو',
+    e_popup_closed: 'تم إغلاق نافذة Google قبل إكمال الدخول.', e_popup_blocked: 'المتصفح منع النافذة المنبثقة، اسمح بها ثم أعد المحاولة.',
+    e_domain: 'نطاق الموقع غير مصرّح به في Firebase: أضفه في Authentication ← Settings ← Authorized domains.',
+    e_provider: 'طريقة الدخول هذه غير مفعّلة في Firebase (Authentication ← Sign-in method).',
+    e_diff: 'يوجد حساب بنفس البريد بطريقة دخول أخرى. ادخل بها أولاً.', profileErrTitle: 'تعذّر تحميل/إنشاء حسابك في قاعدة البيانات',
     cfgTitle: '⚠️ إعدادات Firebase ناقصة', cfgText: 'أضف متغيرات VITE_FIREBASE_* (ملف .env محلياً أو Environment Variables على Vercel).',
     images: '1) الصور', pickImages: '📷 اضغط لاختيار صور متعددة', audio: '2) الصوت',
     uploadAudio: '🎵 رفع ملف صوتي', record: '🎙️ تسجيل مباشر', stop: '⏹ إيقاف', removeAudio: 'إزالة الصوت',
@@ -95,6 +100,11 @@ const DICT = {
     e_cred: 'Wrong email or password.', e_exists: 'This email is already registered.',
     e_weak: 'Weak password (min. 6 characters).', e_many: 'Too many attempts, try again later.',
     e_net: 'Network problem.', e_generic: 'Unexpected error.',
+    googleBtn: 'Continue with Google', orSep: 'or',
+    e_popup_closed: 'The Google window was closed before sign-in finished.', e_popup_blocked: 'The browser blocked the popup. Allow popups and try again.',
+    e_domain: 'This site domain is not authorized in Firebase: add it under Authentication → Settings → Authorized domains.',
+    e_provider: 'This sign-in method is not enabled in Firebase (Authentication → Sign-in method).',
+    e_diff: 'An account with this email exists with another sign-in method. Use that one first.', profileErrTitle: 'Could not load/create your account in the database',
     cfgTitle: '⚠️ Firebase settings missing', cfgText: 'Add the VITE_FIREBASE_* variables (.env locally, Environment Variables on Vercel).',
     images: '1) Images', pickImages: '📷 Click to choose multiple images', audio: '2) Audio',
     uploadAudio: '🎵 Upload audio', record: '🎙️ Record live', stop: '⏹ Stop', removeAudio: 'Remove audio',
@@ -134,6 +144,11 @@ const DICT = {
     e_cred: 'E-mail ou mot de passe incorrect.', e_exists: 'Cet e-mail est déjà utilisé.',
     e_weak: 'Mot de passe trop faible (6 caractères minimum).', e_many: 'Trop de tentatives, réessayez plus tard.',
     e_net: 'Problème de connexion.', e_generic: 'Erreur inattendue.',
+    googleBtn: 'Continuer avec Google', orSep: 'ou',
+    e_popup_closed: 'La fenêtre Google a été fermée avant la fin de la connexion.', e_popup_blocked: 'Le navigateur a bloqué la fenêtre. Autorisez les popups puis réessayez.',
+    e_domain: "Le domaine du site n'est pas autorisé dans Firebase : ajoutez-le dans Authentication → Settings → Authorized domains.",
+    e_provider: "Cette méthode de connexion n'est pas activée dans Firebase (Authentication → Sign-in method).",
+    e_diff: 'Un compte avec cet e-mail existe avec une autre méthode de connexion. Utilisez-la d\'abord.', profileErrTitle: 'Impossible de charger/créer votre compte dans la base de données',
     cfgTitle: '⚠️ Configuration Firebase manquante', cfgText: "Ajoutez les variables VITE_FIREBASE_* (.env en local, Environment Variables sur Vercel).",
     images: '1) Images', pickImages: '📷 Cliquez pour choisir plusieurs images', audio: '2) Audio',
     uploadAudio: '🎵 Importer un audio', record: '🎙️ Enregistrer', stop: '⏹ Arrêter', removeAudio: "Retirer l'audio",
@@ -173,6 +188,11 @@ const DICT = {
     e_cred: 'Correo o contraseña incorrectos.', e_exists: 'Este correo ya está registrado.',
     e_weak: 'Contraseña débil (mínimo 6 caracteres).', e_many: 'Demasiados intentos, inténtalo más tarde.',
     e_net: 'Problema de conexión.', e_generic: 'Error inesperado.',
+    googleBtn: 'Continuar con Google', orSep: 'o',
+    e_popup_closed: 'Se cerró la ventana de Google antes de terminar el inicio de sesión.', e_popup_blocked: 'El navegador bloqueó la ventana emergente. Permítela e inténtalo de nuevo.',
+    e_domain: 'El dominio del sitio no está autorizado en Firebase: añádelo en Authentication → Settings → Authorized domains.',
+    e_provider: 'Este método de inicio de sesión no está activado en Firebase (Authentication → Sign-in method).',
+    e_diff: 'Existe una cuenta con este correo con otro método de acceso. Usa ese primero.', profileErrTitle: 'No se pudo cargar/crear tu cuenta en la base de datos',
     cfgTitle: '⚠️ Falta la configuración de Firebase', cfgText: 'Añade las variables VITE_FIREBASE_* (.env en local, Environment Variables en Vercel).',
     images: '1) Imágenes', pickImages: '📷 Haz clic para elegir varias imágenes', audio: '2) Audio',
     uploadAudio: '🎵 Subir audio', record: '🎙️ Grabar en directo', stop: '⏹ Detener', removeAudio: 'Quitar audio',
@@ -365,6 +385,7 @@ function Provider({ children }) {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(CONFIGURED);
+  const [profileErr, setProfileErr] = useState('');
   const [, setTick] = useState(0);
 
   // اتجاه الصفحة واللغة تلقائياً
@@ -390,7 +411,7 @@ function Provider({ children }) {
     let unsubProfile = null;
     const unsubAuth = onAuthStateChanged(auth, async (u) => {
       if (unsubProfile) { unsubProfile(); unsubProfile = null; }
-      setUser(u); setProfile(null);
+      setUser(u); setProfile(null); setProfileErr('');
       if (!u) { setLoading(false); return; }
       const ref = doc(db, 'users', u.uid);
       try {
@@ -401,8 +422,9 @@ function Provider({ children }) {
             minutesUsed: 0, createdAt: serverTimestamp(),
           });
         }
-      } catch (e) { console.error('profile init', e); }
-      unsubProfile = onSnapshot(ref, (s) => { setProfile(s.data() || null); setLoading(false); }, () => setLoading(false));
+      } catch (e) { console.error('profile init', e); setProfileErr(`${e.code || ''} ${e.message || e}`.trim()); }
+      unsubProfile = onSnapshot(ref, (s) => { setProfile(s.data() || null); setLoading(false); },
+        (e) => { console.error('profile read', e); setProfileErr(`${e.code || ''} ${e.message || e}`.trim()); setLoading(false); });
     });
     return () => { unsubAuth(); if (unsubProfile) unsubProfile(); };
   }, []);
@@ -423,9 +445,15 @@ function Provider({ children }) {
   }, []);
 
   const api = {
-    lang, setLang, t, user, profile, loading, isAdmin, unlimited, balance, verified, refreshUser,
+    lang, setLang, t, user, profile, profileErr, loading, isAdmin, unlimited, balance, verified, refreshUser,
     signup: async (m, p) => { const c = await createUserWithEmailAndPassword(auth, m, p); await sendEmailVerification(c.user); },
     login: (m, p) => signInWithEmailAndPassword(auth, m, p),
+    // Google: نفس onAuthStateChanged ينشئ مستند users/{uid} برصيد التجربة عند أول دخول
+    loginGoogle: () => {
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+      return signInWithPopup(auth, provider);
+    },
     resetPassword: (m) => sendPasswordResetEmail(auth, m),
     resendVerification: () => sendEmailVerification(auth.currentUser),
     logout: () => signOut(auth),
@@ -443,15 +471,26 @@ function LangSwitch() {
   );
 }
 
-const authErrorKey = (code) => ({
+const AUTH_ERRORS = {
   'auth/invalid-email': 'e_invalid', 'auth/user-not-found': 'e_notfound', 'auth/wrong-password': 'e_cred',
   'auth/invalid-credential': 'e_cred', 'auth/email-already-in-use': 'e_exists', 'auth/weak-password': 'e_weak',
   'auth/too-many-requests': 'e_many', 'auth/network-request-failed': 'e_net',
-}[code] || 'e_generic');
+  'auth/popup-closed-by-user': 'e_popup_closed', 'auth/cancelled-popup-request': 'e_popup_closed',
+  'auth/popup-blocked': 'e_popup_blocked', 'auth/unauthorized-domain': 'e_domain',
+  'auth/operation-not-allowed': 'e_provider', 'auth/account-exists-with-different-credential': 'e_diff',
+};
+
+// رسالة مفهومة + الكود الحقيقي دائماً؛ وللأخطاء غير المعروفة نعرض رسالة Firebase الأصلية كما هي
+function errorText(t, ex) {
+  const code = ex?.code || '';
+  const key = AUTH_ERRORS[code];
+  if (key) return `${t(key)} (${code})`;
+  return ex?.message || code || String(ex);
+}
 
 /* ---------- تسجيل الدخول ---------- */
 function Login() {
-  const { t, login, signup, resetPassword } = useApp();
+  const { t, login, signup, resetPassword, loginGoogle } = useApp();
   const [mode, setMode] = useState('login');
   const [email, setEmail] = useState('');
   const [pass, setPass] = useState('');
@@ -466,7 +505,13 @@ function Login() {
       if (mode === 'login') await login(email.trim(), pass);
       else if (mode === 'signup') await signup(email.trim(), pass);
       else { await resetPassword(email.trim()); setInfo(t('resetSent')); }
-    } catch (ex) { setErr(t(authErrorKey(ex.code))); }
+    } catch (ex) { console.error('auth', ex); setErr(errorText(t, ex)); }
+    setBusy(false);
+  };
+
+  const googleSignIn = async () => {
+    setErr(''); setInfo(''); setBusy(true);
+    try { await loginGoogle(); } catch (ex) { console.error('google auth', ex); setErr(errorText(t, ex)); }
     setBusy(false);
   };
 
@@ -495,6 +540,20 @@ function Login() {
         <button className="btn primary block" disabled={busy}>
           {busy ? '...' : mode === 'login' ? t('enter') : mode === 'signup' ? t('createAcc') : t('sendLink')}
         </button>
+        {mode !== 'reset' && (
+          <>
+            <div className="sep"><span>{t('orSep')}</span></div>
+            <button type="button" className="btn google block" disabled={busy} onClick={googleSignIn}>
+              <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+                <path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.6-.4-3.9z" />
+                <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" />
+                <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z" />
+                <path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.6-.4-3.9z" />
+              </svg>
+              {t('googleBtn')}
+            </button>
+          </>
+        )}
         <div className="links">
           {mode !== 'login' && <a onClick={() => setMode('login')}>{t('haveAcc')}</a>}
           {mode !== 'signup' && <a onClick={() => setMode('signup')}>{t('newAcc')}</a>}
@@ -772,7 +831,7 @@ function Admin() {
       const snap = await getDocs(query(collection(db, 'users'), where('email', '==', search.trim().toLowerCase())));
       if (snap.empty) return setErr(t('userNotFound'));
       setFound({ id: snap.docs[0].id, ...snap.docs[0].data() });
-    } catch { setErr(t('permErr')); }
+    } catch (e) { console.error(e); setErr(`${t('permErr')} [${e.code || e.message}]`); }
   };
 
   const addBalance = async () => {
@@ -785,7 +844,7 @@ function Admin() {
       await b.commit();
       setFound({ ...found, balance: (found.balance || 0) + n });
       setMsg(t('added', { n }));
-    } catch { setErr(t('permErr')); }
+    } catch (e) { console.error(e); setErr(`${t('permErr')} [${e.code || e.message}]`); }
   };
 
   const toggleVip = async () => {
@@ -795,7 +854,7 @@ function Admin() {
       b.update(doc(db, 'users', found.id), { unlimited: !found.unlimited, updatedAt: serverTimestamp() });
       await b.commit();
       setFound({ ...found, unlimited: !found.unlimited });
-    } catch { setErr(t('permErr')); }
+    } catch (e) { console.error(e); setErr(`${t('permErr')} [${e.code || e.message}]`); }
   };
 
   return (
@@ -827,7 +886,7 @@ function Admin() {
 
 /* ============================ 7) التطبيق ============================ */
 function Shell() {
-  const { t, user, loading, verified, isAdmin, unlimited, balance, logout, resendVerification, refreshUser } = useApp();
+  const { t, user, loading, verified, isAdmin, unlimited, balance, logout, resendVerification, refreshUser, profileErr } = useApp();
   const [tab, setTab] = useState('editor');
   const [msg, setMsg] = useState('');
 
@@ -874,6 +933,7 @@ function Shell() {
         </div>
       </header>
       <main className="container">
+        {profileErr && <div className="banner"><b>{t('profileErrTitle')}:</b> <span dir="ltr">{profileErr}</span></div>}
         {tab === 'editor' && <Editor goBilling={() => setTab('billing')} />}
         {tab === 'billing' && <Billing />}
         {tab === 'admin' && isAdmin && <Admin />}
@@ -940,6 +1000,9 @@ input:focus,select:focus{outline:2px solid var(--p1)}
 .pack{display:flex;flex-direction:column;gap:6px;align-items:flex-start;background:#0d0d18;border:1px solid var(--line);border-radius:12px;padding:14px}
 .price{font-size:1.6rem;color:var(--ok)}
 .found{margin-top:14px;background:#0d0d18;border:1px solid var(--line);border-radius:12px;padding:14px}
+.sep{display:flex;align-items:center;gap:10px;color:var(--mut);margin:14px 0 4px;font-size:.85rem}.sep:before,.sep:after{content:'';flex:1;height:1px;background:var(--line)}
+.btn.google{background:#fff;color:#1f1f1f;border:0}.btn.google:hover{background:#f1f1f1}
+.banner{background:#ff4d4d22;border:1px solid #ff4d4d88;border-radius:12px;padding:12px 16px;margin-bottom:16px;word-break:break-word}
 .footer{text-align:center;color:var(--mut);padding:24px;font-size:.85rem}
 .spinner{width:42px;height:42px;border:4px solid var(--line);border-top-color:var(--p1);border-radius:50%;animation:s 1s linear infinite}
 @keyframes s{to{transform:rotate(360deg)}}
