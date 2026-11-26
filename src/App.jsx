@@ -21,6 +21,8 @@ import JSZip from 'jszip';
 const ADMIN_EMAIL = 'khalidchaf200@gmail.com';
 const MIN_SECONDS = 5;
 const MAX_SECONDS = 7200;         // 120 دقيقة (حدّ تقني لحماية ذاكرة المتصفح فقط)
+const AUDIO_RATE = 48000;         // معدل عينات موحّد (التسجيل + التصدير)
+const AUDIO_BITRATE = '192k';     // جودة AAC عند التصدير
 
 const LANGS = { ar: 'العربية', en: 'English', fr: 'Français', es: 'Español' };
 
@@ -324,7 +326,15 @@ async function renderVideo({ images, audio, totalSeconds, resolution, onProgress
     const args = ['-f', 'concat', '-safe', '0', '-i', 'list.txt'];
     if (audio) {
       await ff.writeFile('audio.in', new Uint8Array(await audio.arrayBuffer()));
-      args.push('-i', 'audio.in', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '96k', '-t', String(totalSeconds), '-movflags', '+faststart', 'out.mp4');
+      // مسار صوت واحد فقط (map) لمنع أي تراكب، وبدون أي تضخيم (لا volume/gain).
+      // aresample: معدل عينات موحّد 48kHz + إصلاح فجوات التوقيت في تسجيلات webm دون تغيير طول الصوت.
+      // alimiter: سقف -0.9 → ~-0.9dBFS مع level=0 (يمنع التطبيع/التضخيم التلقائي) فلا يتجاوز الصوت 0dB.
+      args.push(
+        '-i', 'audio.in', '-map', '0:v:0', '-map', '1:a:0', '-c:v', 'copy',
+        '-af', `aresample=${AUDIO_RATE}:async=1,alimiter=limit=0.9:attack=5:release=50:level=0`,
+        '-c:a', 'aac', '-b:a', AUDIO_BITRATE, '-ar', String(AUDIO_RATE),
+        '-t', String(totalSeconds), '-movflags', '+faststart', 'out.mp4',
+      );
     } else {
       args.push('-c', 'copy', '-movflags', '+faststart', 'out.mp4');
     }
@@ -605,8 +615,16 @@ function Editor() {
   const startRec = async () => {
     setError('');
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const rec = new MediaRecorder(stream);
+      // AGC وإلغاء الصدى يسبّبان "ضخّ" وتشويهاً في الصوت المسجّل؛ نعطّلهما ونطلب 48kHz.
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          sampleRate: AUDIO_RATE, channelCount: 1,
+          echoCancellation: false, autoGainControl: false, noiseSuppression: true,
+        },
+      });
+      const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4']
+        .find((m) => window.MediaRecorder?.isTypeSupported?.(m));
+      const rec = new MediaRecorder(stream, { ...(mime ? { mimeType: mime } : {}), audioBitsPerSecond: 192000 });
       chunksRef.current = [];
       rec.ondataavailable = (e) => { if (e.data.size) chunksRef.current.push(e.data); };
       rec.onstop = async () => {
